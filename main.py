@@ -1,10 +1,8 @@
-# Reddit Bot
-
 import praw
 import os
-import sqlite3
 import urllib
 import re
+import sys
 
 # the regex used to find the excuse on the website http://developerexcuses.com
 excuse_regex = "<a .*?>(.*?)</a>"
@@ -14,6 +12,21 @@ submission_limit = 5
 
 # the file name with the submissions that have already been replied to
 posts_replied_to_file = "posts-replied-to.txt"
+
+# ask the user to start the bot
+start_script_question = input("Do u want to start the bot (y/n): ")
+
+# if the user chooses n the script will exit
+if "n" in start_script_question:
+    sys.exit()
+
+# ask the user what subbredit to watch
+subbreddit_to_watch = input(
+    "What subbredit do u want the bot to watch? leave empty to use 'DeveloperExcusesBot' (without 'r/')")
+
+#  if no input was given set subbreddit to default: DeveloperExcusesBot
+if not subbreddit_to_watch:
+    subbreddit_to_watch = "DeveloperExcusesBot"
 
 # check if file exists
 if not os.path.isfile(posts_replied_to_file):
@@ -36,7 +49,7 @@ else:
 reddit = praw.Reddit('bot1')
 
 # define the subbreddit the bot should run on
-subreddit = reddit.subreddit('DeveloperExcusesBot')
+subreddit = reddit.subreddit(subbreddit_to_watch)
 
 
 def get_random_exuse():
