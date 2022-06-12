@@ -76,7 +76,7 @@ while True:
             # check if the submission has one of the following flairs
             if submission.link_flair_text in ['bug', 'help', 'not working']:
                 # reply with a random developer excuse
-                submission.reply(get_random_exuse())
+                submission.reply(body=get_random_exuse())
 
                 # log reply to submission
                 print("Bot replyed to : ", submission.title)
