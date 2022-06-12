@@ -9,6 +9,9 @@ import re
 # the regex used to find the excuse on the website http://developerexcuses.com
 excuse_regex = "<a .*?>(.*?)</a>"
 
+# the amout of posts to get per fetch
+submission_limit = 5
+
 # the file name with the submissions that have already been replied to
 posts_replied_to_file = "posts-replied-to.txt"
 
@@ -52,7 +55,7 @@ def get_random_exuse():
 
 while True:
     # for every 5 new submissions/posts
-    for submission in subreddit.new(limit=5):
+    for submission in subreddit.new(limit=submission_limit):
 
         # if the submission hasnt been replied to
         if submission.id not in posts_replied_to:
