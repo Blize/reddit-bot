@@ -70,25 +70,34 @@ def get_random_exuse():
 
 
 while True:
+
+    for message in reddit.inbox.unread(limit=None):
+        # check if message was read
+            print("You have unread messages")
+            print("")
+            print("The Messages Contains: " + message.subject)
+
     # for every 5 new submissions/posts
     for submission in subreddit.new(limit=submission_limit):
 
         # if the submission hasnt been replied to
         if submission.id not in posts_replied_to:
 
-            # check if the submission has one of the following flairs
-            if submission.is_self:
-                # reply with a random developer excuse
-                print("There is a new message in your favourite sub Reddit: " + subbreddit_to_watch)
-                submission.reply(body=get_random_exuse())
+                # check if the submission has one of the following flairs
+                if submission.is_self:
 
-                # log reply to submission
-                print("Bot replyed to : ", submission.title + " in " + subbreddit_to_watch)
+                 # reply with a random developer excuse
+                 print("There is a new message in your favourite sub Reddit: " + subbreddit_to_watch)
 
-                # add submission id to list
-                posts_replied_to.append(submission.id)
+                 submission.reply(body=get_random_exuse())
 
-                # open file and update the list
-                with open(posts_replied_to_file, "w") as f:
-                    for post_id in posts_replied_to:
-                        f.write(post_id + "\n")
+                 # log reply to submission
+                 print("Bot replyed to : ", submission.title + " in " + subbreddit_to_watch)
+
+                 # add submission id to list
+                 posts_replied_to.append(submission.id)
+
+                 # open file and update the list
+                 with open(posts_replied_to_file, "w") as f:
+                     for post_id in posts_replied_to:
+                         f.write(post_id + "\n")
