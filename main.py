@@ -28,6 +28,9 @@ subbreddit_to_watch = input(
 if not subbreddit_to_watch:
     subbreddit_to_watch = "DeveloperExcusesBot"
 
+print("The Bot is now watching " + subbreddit_to_watch)
+print("")
+
 # check if file exists
 if not os.path.isfile(posts_replied_to_file):
     # create new empty list for new posts
@@ -74,12 +77,13 @@ while True:
         if submission.id not in posts_replied_to:
 
             # check if the submission has one of the following flairs
-            if submission.link_flair_text in ['bug', 'help', 'not working']:
+            if submission.is_self:
                 # reply with a random developer excuse
+                print("There is a new message in your favourite sub Reddit: " + subbreddit_to_watch)
                 submission.reply(body=get_random_exuse())
 
                 # log reply to submission
-                print("Bot replyed to : ", submission.title)
+                print("Bot replyed to : ", submission.title + " in " + subbreddit_to_watch)
 
                 # add submission id to list
                 posts_replied_to.append(submission.id)
