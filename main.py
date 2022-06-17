@@ -3,6 +3,7 @@ import os
 import urllib
 import re
 import sys
+import sqlite3
 
 # the regex used to find the excuse on the website http://developerexcuses.com
 excuse_regex = "<a .*?>(.*?)</a>"
@@ -20,16 +21,12 @@ start_script_question = input("Do u want to start the bot (y/n): ")
 if "n" in start_script_question:
     sys.exit()
 
-# ask the user what subbredit to watch
-subbreddit_to_watch = input(
-    "What subbredit do u want the bot to watch? leave empty to use 'DeveloperExcusesBot' (without 'r/')")
+# create a connection to our sqlite database
+connection = sqlite3.connect('subreddits.sqlite')
+cursor = connection.cursor()
 
-#  if no input was given set subbreddit to default: DeveloperExcusesBot
-if not subbreddit_to_watch:
-    subbreddit_to_watch = "DeveloperExcusesBot"
-
-print("The Bot is now watching " + subbreddit_to_watch)
-print("")
+# create a table named subreddits if it doesnt already exsits
+cursor.execute("create table if not exists subreddits (id, name, added_by)")
 
 # check if file exists
 if not os.path.isfile(posts_replied_to_file):
@@ -48,13 +45,8 @@ else:
         # filter undefined/null entries in the lists
         posts_replied_to = list(filter(None, posts_replied_to))
 
-# initiate a new reddit bot instance
-reddit = praw.Reddit('bot1')
 
-# define the subbreddit the bot should run on
-subreddit = reddit.subreddit(subbreddit_to_watch)
-
-
+# function that fetches a random developer excuse from the website
 def get_random_exuse():
     # fetch the developer exuses page
     resp = urllib.request.urlopen('http://developerexcuses.com')
@@ -69,13 +61,190 @@ def get_random_exuse():
     return excuse_search.group(1)
 
 
-while True:
+# function that checks if an there is an item in a list with the given index
+def index_exists(list, index):
+    try:
+        list[index]
+        return True
+    except IndexError:
+        return False
 
+
+# look throught the given array of users and return true if the user is in the list
+def check_moderator(mods, user):
+    for moderator in mods:
+        if moderator.name == user:
+            return True
+
+    return False
+
+
+# function that returns all subreddits to watch in a list
+def get_subbreddits_to_watch():
+    subbreddits_to_watch = []
+
+    cursor.execute("select name from subreddits")
+
+    data = cursor.fetchall()
+
+    for subreddit in data:
+        subbreddits_to_watch.append(subreddit[0])
+
+    if len(subbreddits_to_watch) < 1:
+        return "DeveloperExcusesBot"
+
+    return "+".join(subbreddits_to_watch)
+
+
+# initiate a new reddit bot instance
+reddit = praw.Reddit('bot1')
+
+print("The Bot is now watching " + get_subbreddits_to_watch())
+print("")
+
+while True:
+    # define the subbreddit the bot should run on
+    subreddit = reddit.subreddit(get_subbreddits_to_watch())
+
+    # for every unread message in the indbox
     for message in reddit.inbox.unread(limit=None):
-        # check if message was read
-            print("You have unread messages")
-            print("")
-            print("The Messages Contains: " + message.subject)
+
+        # split the message where there is a space
+        message_body = message.body.split()
+
+        # check if the message begins with an exlemation mark
+        if message.body[0] != "!":
+
+            # mark the message as read so it doesnt get picked up anymore
+            message.mark_read()
+
+            # reply to the message that the command was invalid
+            message.reply(
+                body=message.body + " Is not an valid command, u can use !add [subreddit] and !remove [subreddit] to add the bot")
+
+            # if the message isnt a command stop logic early
+            continue
+
+        # check if first part of message matches a command else repy with info message
+        if message_body[0] == "!add":
+
+            # check if the commands includes a subreddit
+            if not index_exists(message_body, 1):
+                message.mark_read()
+                message.reply(
+                    body="You are missing an argument of the !add command usage: !add [subreddit]")
+                continue
+
+            # search for the subbreddit with the 1st message argument
+            new_subreddit = reddit.subreddit(message_body[1])
+
+            # check if there is a search result
+            if not new_subreddit:
+
+                # mark the message as read
+                message.mark_read()
+
+                # reply to messsage with not found warning
+                message.reply(
+                    body="The Following subbredit could not be found: " + message_body[1])
+                continue
+
+            # search the subreddit and check if it exists
+            if new_subreddit:
+
+                # check if the user is moderator of such subreddit
+                if check_moderator(new_subreddit.moderator(), message.author.name):
+
+                    print("added subreddit: " + new_subreddit.display_name +
+                          " by: " + message.author.name)
+
+                    # add new subreddit to subbreddit table with colums (id, name, added_by)
+                    cursor.execute(
+                        "insert into subreddits (id, name, added_by) values (?, ?, ?)", (new_subreddit.name, new_subreddit.display_name, message.author.name))
+
+                    # save changes so they are persistant over sessions
+                    connection.commit()
+
+                    # mark the message as read
+                    message.mark_read()
+
+                    # reply to the messsage with a sucessful response messsage
+                    message.reply(body="Successfully added subbreddit " +
+                                  new_subreddit.display_name + " to watchlist!")
+
+                else:
+                    print("user isnt a moderator of the selected sub")
+
+                    # mark the message as read
+                    message.mark_read()
+
+                    # reply to the message with a messsage with a permission warning
+                    message.reply(
+                        body="You arrent a Moderator of the subreddit: " + new_subreddit.display_name + " so u are not allowed to add the bot, please ask an modarator to add the bot!")
+                    continue
+
+        elif message_body[0] == "!remove":
+
+            # check if the commands includes a subreddit
+            if not index_exists(message_body, 1):
+                message.mark_read()
+                message.reply(
+                    body="You are missing an argument of the !remove command usage: !remove [subreddit]")
+                continue
+
+            # search for the subbreddit with the 1st message argument
+            new_subreddit = reddit.subreddit(message_body[1])
+
+            # check if there is a search result
+            if not new_subreddit:
+
+                # mark the message as read
+                message.mark_read()
+
+                # reply to messsage with not found warning
+                message.reply(
+                    body="The Following subbredit could not be found: " + message_body[1])
+                continue
+
+            # search the subreddit and check if it exists
+            if new_subreddit:
+
+                # check if the user is moderator of such subreddit
+                if check_moderator(new_subreddit.moderator(), message.author.name):
+
+                    print("removed subreddit: " + new_subreddit.display_name +
+                          " by" + message.author.name)
+
+                    # remove subbreddit where id matches
+                    cursor.execute(
+                        "delete from subreddits where id = :subID", {"subID": new_subreddit.name})
+
+                    # save changes so they are persistant over sessions
+                    connection.commit()
+
+                    # mark the message as read
+                    message.mark_read()
+
+                    # reply to the messsage with a sucessful response messsage
+                    message.reply(body="Successfully removed subbreddit " +
+                                  new_subreddit.display_name + " from watchlist!")
+
+                else:
+                    print("user isnt a moderator of the selected sub")
+
+                    # mark the message as read
+                    message.mark_read()
+
+                    # reply to the message with a messsage with a permission warning
+                    message.reply(
+                        body="You arrent a Moderator of the subreddit: " + new_subreddit.display_name + " so u are not allowed to remove the bot, please ask an modarator to remove the bot!")
+                    continue
+
+        else:
+            message.mark_read()
+            message.reply(
+                body=message_body[0] + " is and invalid command try: !add, !remove")
+            continue
 
     # for every 5 new submissions/posts
     for submission in subreddit.new(limit=submission_limit):
@@ -83,21 +252,23 @@ while True:
         # if the submission hasnt been replied to
         if submission.id not in posts_replied_to:
 
-                # check if the submission has one of the following flairs
-                if submission.is_self:
+            # check if the submission has one of the following flairs
+            if submission.link_flair_text in ['bug', 'help', 'not working']:
 
-                 # reply with a random developer excuse
-                 print("There is a new message in your favourite sub Reddit: " + subbreddit_to_watch)
+                # upvote the post
+                submission.upvote()
 
-                 submission.reply(body=get_random_exuse())
+                # reply with a random developer excuse
+                submission.reply(body=get_random_exuse())
 
-                 # log reply to submission
-                 print("Bot replyed to : ", submission.title + " in " + subbreddit_to_watch)
+                # log reply to submission
+                print("Bot replyed to : ", submission.title +
+                      " in " + submission.subreddit.name)
 
-                 # add submission id to list
-                 posts_replied_to.append(submission.id)
+                # add submission id to list
+                posts_replied_to.append(submission.id)
 
-                 # open file and update the list
-                 with open(posts_replied_to_file, "w") as f:
-                     for post_id in posts_replied_to:
-                         f.write(post_id + "\n")
+                # open file and update the list
+                with open(posts_replied_to_file, "w") as f:
+                    for post_id in posts_replied_to:
+                        f.write(post_id + "\n")
